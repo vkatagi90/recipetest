@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recipe Index</title>
+<meta name="theme-color" content="#F1F4F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101713" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recipes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<style>
+/* Layout: one narrow column built for a phone propped on the bench. A sticky search bar,
+   section chips, then an index of recipe names grouped by section and variety. Every recipe
+   sits in full below the index in the same order. Tapping a name scrolls to it, and a
+   floating button returns to the index. Everything is stored on the device. */
+:root {
+  --bg: #F1F4F0;
+  --surface: #FFFFFF;
+  --ink: #16211C;
+  --muted: #56655D;
+  --line: #D5DDD7;
+  --accent: #1E6A4E;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DDEBE3;
+  --flash: #FFE7A0;
+  --danger: #B3261E;
+  --display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bar-h: 66px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101713;
+    --surface: #18211C;
+    --ink: #E6EEE8;
+    --muted: #9AAEA3;
+    --line: #2B3932;
+    --accent: #6FCBA0;
+    --accent-ink: #0B1A13;
+    --accent-soft: #1F3329;
+    --flash: #4A4120;
+    --danger: #F2867F;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 var(--body);
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+}
+button, input, textarea, select { font: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 760px; margin-inline: auto; padding-inline: 16px; padding-top: 0; padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+
+.bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 10px; margin-inline: -16px; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.search {
+  flex: 1; min-width: 0; height: 46px; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font-size: 16px;
+}
+.btn {
+  height: 46px; padding: 0 18px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 700;
+}
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--danger); margin-right: auto; }
+.btn.small { height: 40px; padding: 0 14px; font-size: .9rem; }
+.btn.toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 16px; padding-top: 24px; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+h1 { margin: 0; font: 800 clamp(2rem, 9vw, 2.8rem)/1.02 var(--display); letter-spacing: -.02em; }
+.meta { margin: 8px 0 0; color: var(--muted); font-size: .92rem; }
+
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 16px 0 4px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; height: 40px; padding: 0 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.chips.sub { padding-top: 2px; }
+.chips.sub .chip { height: 34px; font-size: .92rem; }
+
+.cat {
+  margin: 28px 0 4px; padding-bottom: 8px; border-bottom: 2px solid var(--ink);
+  font: 700 .8rem/1 var(--body); text-transform: uppercase; letter-spacing: .1em; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.vtitle { margin: 18px 0 0; color: var(--accent); font: 700 1.05rem/1.2 var(--display); overflow-wrap: anywhere; }
+.idx { list-style: none; margin: 0; padding: 0; columns: 1; }
+.idx li { break-inside: avoid; }
+.idx a {
+  display: flex; align-items: center; min-height: 48px; border-bottom: 1px solid var(--line);
+  color: var(--ink); text-decoration: none; font-size: 1.06rem;
+}
+.idx a:hover, .idx a:active { color: var(--accent); }
+@media (min-width: 620px) { .idx { columns: 2; column-gap: 28px; } }
+.empty { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; padding: 4px 0 8px; color: var(--muted); }
+.empty p { margin: 0; }
+
+.note { margin: 28px 0; color: var(--muted); max-width: 52ch; }
+.note strong { color: var(--ink); }
+
+#recipes { display: flex; flex-direction: column; gap: 18px; margin-top: 44px; }
+.group-title { margin: 14px 0 -6px; font: 700 .8rem/1 var(--body); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.rec {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px 18px 8px; scroll-margin-top: calc(var(--bar-h) + env(safe-area-inset-top, 0px) + 8px);
+}
+.rec.flash { animation: flash 1.8s ease-out; }
+@keyframes flash { from { background: var(--flash); } to { background: var(--surface); } }
+@media (prefers-reduced-motion: reduce) { .rec.flash { animation: none; outline: 3px solid var(--accent); } }
+.rec-top { display: flex; align-items: center; gap: 10px; }
+.tag { margin: 0; color: var(--accent); font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.rec h2 { margin: 6px 0 12px; font: 700 1.5rem/1.15 var(--display); text-wrap: balance; overflow-wrap: anywhere; }
+.body { min-width: 0; overflow-wrap: anywhere; }
+.body h3 { margin: 18px 0 6px; color: var(--muted); font: 700 .82rem/1.2 var(--body); letter-spacing: .09em; text-transform: uppercase; }
+.body p { margin: 0 0 8px; max-width: 65ch; }
+.body ul, .body ol { margin: 0 0 8px; padding-left: 1.35em; max-width: 65ch; }
+.body li { margin: 0 0 6px; padding-left: 2px; }
+.body li::marker { color: var(--accent); font-weight: 700; }
+.foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line); }
+.link {
+  display: inline-flex; align-items: center; min-height: 46px; padding: 0 4px;
+  background: none; border: 0; color: var(--accent); font-weight: 700; cursor: pointer;
+}
+
+.fab {
+  position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 6;
+  height: 48px; padding: 0 20px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700;
+  box-shadow: 0 4px 14px rgb(0 0 0 / .28);
+}
+
+#toast {
+  position: fixed; left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 8;
+  width: fit-content; max-width: calc(100% - 32px); margin-inline: auto; padding: 12px 16px; border-radius: 10px;
+  background: var(--ink); color: var(--bg); font-size: .95rem;
+}
+
+dialog {
+  width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); max-height: calc(100dvh - 24px); overflow: auto; padding: 0;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink);
+}
+dialog::backdrop { background: rgb(10 20 15 / .55); }
+.form { display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 0; }
+.form h2 { margin: 0; font: 800 1.45rem/1.1 var(--display); }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { font-weight: 700; font-size: .92rem; }
+.field input[type="text"], .field textarea, .field select {
+  width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-size: 16px;
+}
+.field select { height: 46px; }
+.field textarea { min-height: min(240px, 30vh); resize: vertical; line-height: 1.5; }
+.hint { margin: 0; color: var(--muted); font-size: .88rem; }
+.check { display: flex; align-items: center; gap: 10px; }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); }
+.check label { font-weight: 400; }
+.actions {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px;
+  position: sticky; bottom: 0; padding: 12px 0 18px; background: var(--surface);
+}
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.err { margin: 0; color: var(--danger); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar" id="bar">
+    <input id="q" class="search" type="search" aria-label="Search recipes" placeholder="Search names or ingredients" autocomplete="off" enterkeyhint="search">
+    <button id="add" class="btn primary" type="button">Add</button>
+  </header>
+
+  <main>
+    <section id="index">
+      <div class="head">
+        <div>
+          <h1>Recipe Index</h1>
+          <p class="meta" id="sync"></p>
+        </div>
+        <div class="tools">
+          <button id="newSec" class="btn small" type="button">New section</button>
+          <button id="backup" class="btn small" type="button">Backup</button>
+          <button id="awake" class="btn small toggle" type="button" aria-pressed="false" hidden>Keep screen on</button>
+        </div>
+      </div>
+      <div class="chips" id="chips" hidden></div>
+      <div class="chips sub" id="vchips" hidden></div>
+      <div id="indexList"></div>
+    </section>
+    <section id="recipes" aria-label="All recipes"></section>
+  </main>
+
+  <button id="top" class="fab" type="button" hidden>↑ Index</button>
+  <div id="toast" role="status" hidden></div>
+
+  <dialog id="dlg" aria-labelledby="dlgTitle">
+    <form id="form" class="form">
+      <h2 id="dlgTitle">Add recipe</h2>
+      <div class="field" id="titleField">
+        <label for="f-title">Title</label>
+        <input id="f-title" type="text" autocomplete="off" placeholder="Butter chicken">
+      </div>
+      <div class="field">
+        <label for="f-cat">Section</label>
+        <input id="f-cat" type="text" list="catList" autocomplete="off" placeholder="Mains, Breakfast, Desserts">
+        <datalist id="catList"></datalist>
+        <p class="hint">Pick one of your sections, or type a new name to create it.</p>
+      </div>
+      <div class="field">
+        <label for="f-var">Variety (optional)</label>
+        <input id="f-var" type="text" list="varList" autocomplete="off" placeholder="Chicken, Vegetarian, Pasta">
+        <datalist id="varList"></datalist>
+        <p class="hint">A smaller group inside the section. Recipes with the same variety are listed together.</p>
+      </div>
+      <div class="field">
+        <label for="f-body" id="bodyLabel">Recipe</label>
+        <textarea id="f-body" placeholder="Paste the recipe here"></textarea>
+        <p class="hint" id="bodyHint"></p>
+      </div>
+      <div class="check" id="bulkRow">
+        <input id="f-bulk" type="checkbox">
+        <label for="f-bulk">This text has several recipes</label>
+      </div>
+      <p class="err" id="err" role="alert" hidden></p>
+      <div class="actions">
+        <button id="del" class="btn danger" type="button" hidden>Delete</button>
+        <button id="cancel" class="btn" type="button">Cancel</button>
+        <button id="save" class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="sdlg" aria-labelledby="sTitle">
+    <form id="sForm" class="form">
+      <h2 id="sTitle">New section</h2>
+      <div class="field">
+        <label for="s-name">Section name</label>
+        <input id="s-name" type="text" autocomplete="off" placeholder="Soups, Curries, Baking">
+      </div>
+      <div class="field">
+        <label for="s-parent">Where does it go?</label>
+        <select id="s-parent"></select>
+        <p class="hint">Choose the top level for a main section, or pick a section to create a variety inside it.</p>
+      </div>
+      <p class="err" id="sErr" role="alert" hidden></p>
+      <div class="actions">
+        <button id="sCancel" class="btn" type="button">Cancel</button>
+        <button id="sSave" class="btn primary" type="submit">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="bdlg" aria-labelledby="bTitle">
+    <div class="form">
+      <h2 id="bTitle">Backup</h2>
+      <p class="hint">Your recipes are stored on this phone only. Save a backup file now and then, for example into the Files app or iCloud Drive, so you can bring everything back if the app is ever cleared.</p>
+      <div class="stack">
+        <button id="bExport" class="btn primary" type="button">Save a backup</button>
+        <button id="bImport" class="btn" type="button">Restore from a backup</button>
+        <input id="bFile" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p class="hint" id="bMsg" role="status"></p>
+      <p class="hint">Restoring adds any recipes and sections that are missing. It never deletes or overwrites what is already here.</p>
+      <div class="actions">
+        <button id="bClose" class="btn" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'recipe-index-data-v1', META = 'recipe-index-meta-v1';
+  var SYNC = {
+    local: 'Stored on this phone',
+    memory: 'Not being saved. This browser window blocks storage.'
+  };
+  var state = { items: [], sections: [], mode: 'local', q: '', cat: 'All', variety: 'All', editing: null, confirmDel: false };
+  var storageOK = true;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function reduced() { return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function catOf(r) { return (r.category && String(r.category).trim()) || 'Uncategorised'; }
+  function varOf(r) { return (r.variety && String(r.variety).trim()) || ''; }
+  function alpha(a, b) { return a.localeCompare(b, undefined, { sensitivity: 'base' }); }
+  function catSort(a, b) {
+    if (a === 'Uncategorised') return 1;
+    if (b === 'Uncategorised') return -1;
+    return alpha(a, b);
+  }
+  function titleSort(a, b) { return alpha(String(a.title), String(b.title)); }
+
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.h);
+    toast.h = setTimeout(function () { t.hidden = true; }, 3400);
+  }
+  function showDlg(d) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
+  function hideDlg(d) { if (d.close) d.close(); else d.removeAttribute('open'); }
+
+  /* ---------- storage on the device ---------- */
+  function checkStorage() {
+    try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); }
+    catch (e) { storageOK = false; state.mode = 'memory'; }
+  }
+  function load() {
+    try {
+      var v = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (v && Array.isArray(v.recipes)) {
+        state.items = v.recipes;
+        state.sections = Array.isArray(v.sections) ? v.sections : [];
+      }
+    } catch (e) { /* start empty */ }
+  }
+  function save() {
+    if (!storageOK) return;
+    try { localStorage.setItem(KEY, JSON.stringify({ recipes: state.items, sections: state.sections })); }
+    catch (e) { storageOK = false; state.mode = 'memory'; toast('This browser would not store the change.'); render(); }
+  }
+  function lastBackup() {
+    try { var m = JSON.parse(localStorage.getItem(META) || 'null'); return m && m.last ? m.last : 0; }
+    catch (e) { return 0; }
+  }
+  function markBackup() {
+    try { localStorage.setItem(META, JSON.stringify({ last: Date.now() })); } catch (e) { /* ignore */ }
+    paintBackupMsg();
+  }
+
+  /* ---------- sections: from recipes plus any created on their own ---------- */
+  function allCats() {
+    var s = {};
+    state.items.forEach(function (r) { s[catOf(r)] = 1; });
+    state.sections.forEach(function (x) { if (x.name) s[x.parent ? x.parent : x.name] = 1; });
+    return Object.keys(s).sort(catSort);
+  }
+  function allVars(cat) {
+    var s = {};
+    state.items.forEach(function (r) { var v = varOf(r); if (v && catOf(r) === cat) s[v] = 1; });
+    state.sections.forEach(function (x) { if (x.name && x.parent === cat) s[x.name] = 1; });
+    return Object.keys(s).sort(alpha);
+  }
+  function sectionDocs(name, parent) {
+    return state.sections.filter(function (s) { return s.name === name && (s.parent || '') === (parent || ''); });
+  }
+
+  /* ---------- rendering ---------- */
+  function visible() {
+    var q = state.q.trim().toLowerCase();
+    return state.items.filter(function (r) {
+      if (state.cat !== 'All' && catOf(r) !== state.cat) return false;
+      if (state.variety !== 'All' && varOf(r) !== state.variety) return false;
+      if (!q) return true;
+      return (String(r.title) + ' ' + catOf(r) + ' ' + varOf(r) + ' ' + String(r.body || '')).toLowerCase().indexOf(q) !== -1;
+    }).sort(titleSort);
+  }
+
+  function renderBody(text) {
+    var box = el('div', 'body');
+    var list = null, listType = null;
+    String(text).replace(/\r/g, '').split('\n').forEach(function (raw) {
+      var line = raw.trim(), m;
+      if (!line) { list = null; return; }
+      function item(type, t) {
+        if (!list || listType !== type) { list = el(type); listType = type; box.append(list); }
+        list.append(el('li', null, t));
+      }
+      if ((m = line.match(/^[-•*–]\s+(.*)$/))) { item('ul', m[1]); return; }
+      if ((m = line.match(/^\d+[.)]\s+(.*)$/))) { item('ol', m[1]); return; }
+      list = null;
+      if (/^[^.!?]{1,40}:$/.test(line) || /^[A-Z][A-Z &]{2,30}$/.test(line)) box.append(el('h3', null, line.replace(/:$/, '')));
+      else box.append(el('p', null, line));
+    });
+    return box;
+  }
+
+  function card(r) {
+    var a = el('article', 'rec');
+    a.id = 'r-' + r.id;
+    var top = el('div', 'rec-top');
+    top.append(el('p', 'tag', varOf(r) ? catOf(r) + ' · ' + varOf(r) : catOf(r)));
+    a.append(top, el('h2', null, r.title), renderBody(r.body || ''));
+    var f = el('div', 'foot');
+    var back = el('button', 'link', '↑ Index'); back.type = 'button'; back.dataset.act = 'index';
+    var ed = el('button', 'link', 'Edit'); ed.type = 'button'; ed.dataset.act = 'edit'; ed.dataset.id = r.id;
+    f.append(back, ed);
+    a.append(f);
+    return a;
+  }
+
+  function note(html) { var n = el('p', 'note'); n.innerHTML = html; return n; }
+
+  function emptyHint(c, v) {
+    var w = el('div', 'empty');
+    w.append(el('p', null, 'No recipes here yet.'));
+    var add = el('button', 'link', 'Add a recipe');
+    add.type = 'button'; add.dataset.act = 'addhere'; add.dataset.cat = c; add.dataset.variety = v;
+    w.append(add);
+    var name = v || c, parent = v ? c : '';
+    if (sectionDocs(name, parent).length) {
+      var rm = el('button', 'link', 'Remove section');
+      rm.type = 'button'; rm.dataset.act = 'remove'; rm.dataset.name = name; rm.dataset.parent = parent;
+      w.append(rm);
+    }
+    return w;
+  }
+
+  function renderVChips(cats) {
+    var vb = $('vchips');
+    var cat = state.cat !== 'All' ? state.cat : (cats.length === 1 ? cats[0] : null);
+    var vs = cat ? allVars(cat) : [];
+    vb.replaceChildren();
+    vb.hidden = !vs.length;
+    if (vb.hidden) return;
+    ['All'].concat(vs).forEach(function (v) {
+      var b = el('button', 'chip', v === 'All' ? 'All varieties' : v);
+      b.type = 'button'; b.dataset.variety = v;
+      b.setAttribute('aria-pressed', String(state.variety === v));
+      vb.append(b);
+    });
+  }
+  function renderChips(cats) {
+    var box = $('chips');
+    box.replaceChildren();
+    renderVChips(cats);
+    box.hidden = !(cats.length > 1);
+    if (box.hidden) return;
+    ['All'].concat(cats).forEach(function (c) {
+      var b = el('button', 'chip', c);
+      b.type = 'button'; b.dataset.cat = c;
+      b.setAttribute('aria-pressed', String(state.cat === c));
+      box.append(b);
+    });
+  }
+
+  function render() {
+    var cats = allCats();
+    if (state.cat !== 'All' && cats.indexOf(state.cat) < 0) { state.cat = 'All'; state.variety = 'All'; }
+    if (state.variety !== 'All') {
+      var scope = state.cat !== 'All' ? [state.cat] : cats;
+      if (!scope.some(function (c) { return allVars(c).indexOf(state.variety) >= 0; })) state.variety = 'All';
+    }
+    var list = visible();
+    var searching = !!state.q.trim();
+    $('sync').textContent = SYNC[state.mode];
+    renderChips(cats);
+
+    var idx = $('indexList'), rec = $('recipes');
+    idx.replaceChildren(); rec.replaceChildren();
+    if (!state.items.length && !state.sections.length) {
+      idx.append(note('<strong>No recipes yet.</strong> Tap Add, then paste a recipe from Notes. Use New section to set up your sections first. Moving recipes over from another copy of this page? Tap Backup, then Restore from a backup.'));
+      return;
+    }
+    if (searching && !list.length) {
+      idx.append(note('Nothing matches that search. Try another word, or pick All.'));
+      return;
+    }
+
+    (state.cat === 'All' ? cats : [state.cat]).forEach(function (c) {
+      var vnames = allVars(c);
+      if (state.variety !== 'All') {
+        if (vnames.indexOf(state.variety) < 0) return;
+        vnames = [state.variety];
+      }
+      var rs = list.filter(function (r) { return catOf(r) === c; });
+      if (searching && !rs.length) return;
+      idx.append(el('h2', 'cat', c));
+
+      function group(title, items, v) {
+        if (v) idx.append(el('h3', 'vtitle', v));
+        if (!items.length) { idx.append(emptyHint(c, v)); return; }
+        var ul = el('ul', 'idx');
+        items.forEach(function (r) {
+          var li = el('li'), a = el('a', null, r.title);
+          a.href = '#r-' + r.id; a.dataset.id = r.id;
+          li.append(a); ul.append(li);
+        });
+        idx.append(ul);
+        rec.append(el('p', 'group-title', title));
+        items.forEach(function (r) { rec.append(card(r)); });
+      }
+
+      var loose = state.variety === 'All' ? rs.filter(function (r) { return !varOf(r); }) : [];
+      if (loose.length) group(c, loose, '');
+      else if (!vnames.length && !searching) group(c, [], '');
+      vnames.forEach(function (v) {
+        var vrs = rs.filter(function (r) { return varOf(r) === v; });
+        if (searching && !vrs.length) return;
+        group(c + ' · ' + v, vrs, v);
+      });
+    });
+  }
+
+  /* ---------- navigation ---------- */
+  function jump(id) {
+    var t = document.getElementById('r-' + id);
+    if (!t) return;
+    t.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
+    t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
+    setTimeout(function () { t.classList.remove('flash'); }, 1800);
+  }
+  function toIndex() { window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); }
+
+  $('indexList').addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-id]');
+    if (a) { e.preventDefault(); jump(a.dataset.id); return; }
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    if (b.dataset.act === 'addhere') openDlg(null, { category: b.dataset.cat, variety: b.dataset.variety });
+    else if (b.dataset.act === 'remove') removeSection(b.dataset.name, b.dataset.parent, b);
+  });
+  $('recipes').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    if (b.dataset.act === 'index') toIndex();
+    else openDlg(state.items.filter(function (r) { return r.id === b.dataset.id; })[0]);
+  });
+  $('chips').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-cat]');
+    if (!b) return;
+    state.cat = b.dataset.cat; state.variety = 'All'; render();
+  });
+  $('vchips').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-variety]');
+    if (!b) return;
+    state.variety = b.dataset.variety; render();
+  });
+  $('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
+  $('top').addEventListener('click', toIndex);
+
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) {
+      $('top').hidden = es[0].isIntersecting || !state.items.length;
+    }).observe($('index'));
+  }
+
+  /* ---------- recipe dialog ---------- */
+  var dlg = $('dlg');
+  function syncBulk() {
+    var b = $('f-bulk').checked;
+    $('titleField').hidden = b;
+    $('bodyLabel').textContent = b ? 'Recipes' : 'Recipe';
+    $('bodyHint').textContent = b
+      ? 'Put a line with three dashes (---) between recipes. The first line of each one is its title. They all go in the section and variety above.'
+      : 'Paste it straight from Notes. If the title box is empty, the first line becomes the title.';
+  }
+  function fillVarList() {
+    var dl = $('varList'), typed = $('f-cat').value.trim().toLowerCase();
+    dl.replaceChildren();
+    var cat = allCats().filter(function (c) { return c.toLowerCase() === typed; })[0];
+    if (!cat) return;
+    allVars(cat).forEach(function (v) { var o = document.createElement('option'); o.value = v; dl.append(o); });
+  }
+  $('f-cat').addEventListener('input', fillVarList);
+
+  function openDlg(rec, preset) {
+    state.editing = rec || null; state.confirmDel = false;
+    var p = preset || {
+      category: state.cat !== 'All' && state.cat !== 'Uncategorised' ? state.cat : '',
+      variety: state.variety !== 'All' ? state.variety : ''
+    };
+    $('dlgTitle').textContent = rec ? 'Edit recipe' : 'Add recipe';
+    $('f-title').value = rec ? rec.title : '';
+    $('f-cat').value = rec ? (rec.category || '') : p.category;
+    $('f-var').value = rec ? (rec.variety || '') : p.variety;
+    $('f-body').value = rec ? (rec.body || '') : '';
+    $('f-bulk').checked = false; syncBulk();
+    $('bulkRow').hidden = !!rec;
+    $('del').hidden = !rec; $('del').textContent = 'Delete';
+    $('err').hidden = true;
+    var dl = $('catList'); dl.replaceChildren();
+    allCats().forEach(function (c) { if (c !== 'Uncategorised') { var o = document.createElement('option'); o.value = c; dl.append(o); } });
+    fillVarList();
+    showDlg(dlg);
+    setTimeout(function () { (rec ? $('f-body') : $('f-title')).focus(); }, 30);
+  }
+  function showErr(m) { var e = $('err'); e.textContent = m; e.hidden = false; }
+
+  $('add').addEventListener('click', function () { openDlg(null); });
+  $('cancel').addEventListener('click', function () { hideDlg(dlg); });
+  $('f-bulk').addEventListener('change', syncBulk);
+
+  function parseOne(title, body) {
+    title = (title || '').trim();
+    body = (body || '').replace(/\r/g, '').trim();
+    if (!title) {
+      var lines = body.split('\n');
+      title = (lines.shift() || '').replace(/^#+\s*/, '').trim();
+      body = lines.join('\n').trim();
+    }
+    return { title: title, body: body };
+  }
+
+  function persist(data, id) {
+    var now = Date.now();
+    if (id) {
+      state.items.forEach(function (r) {
+        if (r.id === id) { r.title = data.title; r.category = data.category; r.variety = data.variety; r.body = data.body; r.updatedAt = now; }
+      });
+    } else {
+      state.items.push({ id: uid('r'), title: data.title, category: data.category, variety: data.variety, body: data.body, createdAt: now, updatedAt: now });
+    }
+  }
+
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var cat = $('f-cat').value.trim() || 'Uncategorised';
+    var vr = $('f-var').value.trim();
+    var recs = [];
+    if ($('f-bulk').checked && !state.editing) {
+      $('f-body').value.split(/^\s*-{3,}\s*$/m).forEach(function (blk) {
+        if (blk.trim()) { var r = parseOne('', blk); if (r.title) recs.push(r); }
+      });
+    } else {
+      var r = parseOne($('f-title').value, $('f-body').value);
+      if (r.title) recs.push(r);
+    }
+    if (!recs.length) { showErr('Add a title, or paste the recipe with its title on the first line.'); return; }
+    var id = state.editing ? state.editing.id : null;
+    recs.forEach(function (r) { persist({ title: r.title, category: cat, variety: vr, body: r.body }, id); });
+    save(); render(); hideDlg(dlg);
+    toast(recs.length > 1 ? recs.length + ' recipes added' : (id ? 'Recipe updated' : 'Recipe added'));
+  });
+
+  $('del').addEventListener('click', function () {
+    if (!state.editing) return;
+    if (!state.confirmDel) { state.confirmDel = true; $('del').textContent = 'Tap again to delete'; return; }
+    var id = state.editing.id;
+    state.items = state.items.filter(function (r) { return r.id !== id; });
+    save(); render(); hideDlg(dlg); toast('Recipe deleted');
+  });
+
+  /* ---------- section dialog ---------- */
+  var sdlg = $('sdlg');
+  function showSErr(m) { var e = $('sErr'); e.textContent = m; e.hidden = false; }
+
+  $('newSec').addEventListener('click', function () {
+    $('s-name').value = ''; $('sErr').hidden = true;
+    var sel = $('s-parent'); sel.replaceChildren();
+    var top = document.createElement('option'); top.value = ''; top.textContent = 'Top level (a main section)'; sel.append(top);
+    allCats().forEach(function (c) {
+      if (c === 'Uncategorised') return;
+      var o = document.createElement('option'); o.value = c; o.textContent = 'Inside ' + c; sel.append(o);
+    });
+    sel.value = '';
+    showDlg(sdlg);
+    setTimeout(function () { $('s-name').focus(); }, 30);
+  });
+  $('sCancel').addEventListener('click', function () { hideDlg(sdlg); });
+
+  $('sForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = $('s-name').value.trim().replace(/\s+/g, ' ');
+    var parent = $('s-parent').value;
+    if (!name) { showSErr('Type a name for the section.'); return; }
+    var existing = parent ? allVars(parent) : allCats();
+    if (existing.some(function (x) { return x.toLowerCase() === name.toLowerCase(); })) {
+      showSErr(parent ? 'That variety already exists in ' + parent + '.' : 'You already have a section with that name.');
+      return;
+    }
+    state.sections.push({ id: uid('s'), name: name, parent: parent, createdAt: Date.now() });
+    save();
+    state.cat = parent || name; state.variety = parent ? name : 'All';
+    hideDlg(sdlg); render();
+    toast('Section created. Tap Add a recipe to fill it.');
+  });
+
+  function removeSection(name, parent, btn) {
+    if (btn.dataset.arm !== '1') { btn.dataset.arm = '1'; btn.textContent = 'Tap again to remove'; return; }
+    var gone = sectionDocs(name, parent);
+    if (!parent) gone = gone.concat(state.sections.filter(function (s) { return s.parent === name; }));
+    var ids = gone.map(function (d) { return d.id; });
+    state.sections = state.sections.filter(function (s) { return ids.indexOf(s.id) < 0; });
+    save(); render(); toast('Section removed');
+  }
+
+  /* ---------- backup: save to Files / restore ---------- */
+  var bdlg = $('bdlg');
+  function paintBackupMsg() {
+    var t = lastBackup();
+    $('bMsg').textContent = t
+      ? 'Last backup saved ' + new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + '.'
+      : 'No backup saved yet.';
+  }
+  $('backup').addEventListener('click', function () { paintBackupMsg(); showDlg(bdlg); });
+  $('bClose').addEventListener('click', function () { hideDlg(bdlg); });
+
+  function downloadText(text, name) {
+    var blob = new Blob([text], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    markBackup();
+  }
+  $('bExport').addEventListener('click', function () {
+    var data = {
+      app: 'recipe-index', version: 1, exportedAt: new Date().toISOString(),
+      recipes: state.items.map(function (r) {
+        return { title: r.title, category: r.category || '', variety: r.variety || '', body: r.body || '', createdAt: r.createdAt || 0, updatedAt: r.updatedAt || 0 };
+      }),
+      sections: state.sections.map(function (s) { return { name: s.name, parent: s.parent || '' }; })
+    };
+    var text = JSON.stringify(data, null, 2);
+    var name = 'recipe-index-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    var file = null;
+    try { file = new File([text], name, { type: 'application/json' }); } catch (err) { file = null; }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Recipe Index backup' }).then(markBackup).catch(function (err) {
+        if (err && err.name === 'AbortError') return;
+        downloadText(text, name);
+      });
+    } else {
+      downloadText(text, name);
+    }
+  });
+
+  $('bImport').addEventListener('click', function () { $('bFile').click(); });
+  $('bFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onerror = function () { $('bMsg').textContent = 'Could not read that file.'; };
+    rd.onload = function () {
+      var obj;
+      try { obj = JSON.parse(String(rd.result)); } catch (err) { obj = null; }
+      if (!obj || !Array.isArray(obj.recipes)) { $('bMsg').textContent = 'That file is not a Recipe Index backup.'; return; }
+      var key = function (t, c, v) { return [t, c, v].map(function (x) { return String(x || '').trim().toLowerCase(); }).join('|'); };
+      var have = {};
+      state.items.forEach(function (r) { have[key(r.title, catOf(r), varOf(r))] = 1; });
+      var added = 0, skipped = 0, now = Date.now();
+      obj.recipes.forEach(function (r) {
+        if (!r || !String(r.title || '').trim()) return;
+        var k = key(r.title, r.category || 'Uncategorised', r.variety);
+        if (have[k]) { skipped++; return; }
+        have[k] = 1;
+        state.items.push({
+          id: uid('r'), title: String(r.title).trim(), category: String(r.category || '').trim(), variety: String(r.variety || '').trim(),
+          body: String(r.body || ''), createdAt: Number(r.createdAt) || now, updatedAt: Number(r.updatedAt) || now
+        });
+        added++;
+      });
+      var secAdded = 0;
+      (Array.isArray(obj.sections) ? obj.sections : []).forEach(function (s) {
+        if (!s || !String(s.name || '').trim()) return;
+        var name = String(s.name).trim(), parent = String(s.parent || '').trim();
+        if (sectionDocs(name, parent).length) return;
+        state.sections.push({ id: uid('s'), name: name, parent: parent, createdAt: now });
+        secAdded++;
+      });
+      save(); render();
+      $('bMsg').textContent = 'Restored ' + added + (added === 1 ? ' recipe' : ' recipes') + (secAdded ? ' and ' + secAdded + (secAdded === 1 ? ' section' : ' sections') : '') +
+        (skipped ? '. ' + skipped + ' already here.' : '.');
+    };
+    rd.readAsText(f);
+  });
+
+  /* ---------- keep the screen awake while cooking ---------- */
+  var lock = null, wantAwake = false;
+  function paintAwake() {
+    var b = $('awake');
+    b.setAttribute('aria-pressed', String(wantAwake));
+    b.textContent = wantAwake ? 'Screen stays on' : 'Keep screen on';
+  }
+  function acquire() {
+    return navigator.wakeLock.request('screen').then(function (l) {
+      lock = l; l.addEventListener('release', function () { lock = null; });
+    }).catch(function () {
+      wantAwake = false; paintAwake(); toast('This browser would not keep the screen on.');
+    });
+  }
+  if (navigator.wakeLock && navigator.wakeLock.request) {
+    $('awake').hidden = false;
+    $('awake').addEventListener('click', function () {
+      wantAwake = !wantAwake; paintAwake();
+      if (wantAwake) acquire();
+      else if (lock) { lock.release().catch(function () {}); lock = null; }
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (wantAwake && !lock && document.visibilityState === 'visible') acquire();
+    });
+  }
+
+  /* ---------- start ---------- */
+  checkStorage();
+  if (storageOK) load();
+  render();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) { /* ignore */ }
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
